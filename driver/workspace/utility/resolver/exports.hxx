@@ -1627,16 +1627,6 @@ namespace nt {
         return *reinterpret_cast<object_type_t**>(ps_process_type);
     }
 
-    __int64 __fastcall mi_lock_page_table_page(mmpfn_t* pfn_entry, int a2) {
-        static auto mi_lock_page_table_page = 0ull;
-        if (!mi_lock_page_table_page) {
-
-        }
-
-        using function_t = __int64(mmpfn_t*, int);
-        return reinterpret_cast<function_t*>(mi_lock_page_table_page)(pfn_entry, a2);
-    }
-
     void ob_un_register_callbacks(void* handle) {
         static auto ob_un_register_callbacks = 0ull;
         if (!ob_un_register_callbacks) {

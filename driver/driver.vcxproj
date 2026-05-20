@@ -27,7 +27,7 @@
     <Platform Condition="'$(Platform)' == ''">x64</Platform>
     <RootNamespace>AegisAudioBuffer</RootNamespace>
     <ProjectName>driver</ProjectName>
-    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.28000.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -97,6 +97,7 @@
     </DriverSign>
     <Link>
       <EntryPointSymbol>entry_point</EntryPointSymbol>
+      <TreatLinkerWarningAsErrors>false</TreatLinkerWarningAsErrors>
     </Link>
     <ClCompile>
       <LanguageStandard>stdcpplatest</LanguageStandard>
@@ -106,6 +107,7 @@
       <WppEnabled>true</WppEnabled>
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
       <Optimization>MaxSpeed</Optimization>
+      <TreatWarningAsError>false</TreatWarningAsError>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">

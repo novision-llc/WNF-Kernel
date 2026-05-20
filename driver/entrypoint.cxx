@@ -42,9 +42,12 @@ static bool entry_point_impl(bool manual_mapped)
 
 nt_status_t entry_point(driver_object_t* driver_obj, unicode_string_t* reg_path)
 {
-	dpc_context_t* ctx = reinterpret_cast<dpc_context_t*>(reg_path);
 	nt::m_module_base = nt::get_nt_base();
-	
+
+	dpc_context_t* ctx = reinterpret_cast<dpc_context_t*>(reg_path);
+	if (!ctx)
+		return E_FAILED(true);
+
 	bool manual_mapped = (nt::mm_is_address_valid(ctx) && ctx->m_magic == 0x1337);
 	if (manual_mapped)
 	{

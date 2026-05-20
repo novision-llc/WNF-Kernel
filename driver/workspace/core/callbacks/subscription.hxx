@@ -90,6 +90,12 @@ namespace callbacks::subscription
 			case _COMM_REQUESTS::m_locate_actor:
 				fortnite::locate_actor(reinterpret_cast<PKERNEL_LOCATE_ACTOR>(Data->Instruction));
 				break;
+			case _COMM_REQUESTS::m_determine_actor_bulk:
+				fortnite::determine_actor_bulk(reinterpret_cast<PKERNEL_DETERMINE_ACTOR_BULK>(Data->Instruction));
+				break;
+			case _COMM_REQUESTS::m_locate_actor_bulk:
+				fortnite::locate_actor_bulk(reinterpret_cast<PKERNEL_LOCATE_ACTOR_BULK>(Data->Instruction));
+				break;
 			default:
 				nt::dbg_print(oxorany("[subscribe_callback] Recieved invalid request code: %ul"), Data->Type);
 				break;
@@ -100,6 +106,24 @@ namespace callbacks::subscription
 		if (pStateData)
 		{
 			nt::ex_free_pool_with_tag(pStateData, oxorany('WNFB'));
+		}
+
+		if (driver::recieved_unload_packet)
+		{
+			if (global::event::sync_event)
+			{
+				nt::ob_dereference_object(global::event::sync_event);
+				global::event::sync_event = NULL;
+				nt::dbg_print(oxorany("[unload_driver] Dereferenced syncevent!"));
+			}
+
+			if (global::event::wnf_subscription)
+			{
+				nt::ex_unsubscribe_wnf_state_change(global::event::wnf_subscription);
+				nt::dbg_print(oxorany("[unload_driver] Unsubscribed callback!"));
+			}
+
+			g_paging.cleanup();
 		}
 
 		return status;

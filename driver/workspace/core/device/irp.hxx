@@ -134,7 +134,7 @@ namespace device::irp
 			if (!global::mouse::extrainfo)
 				global::mouse::extrainfo = mouseData[i].ExtraInformation;
 
-			/*
+			
 			// Only modify once per mouse_event() call
 			if (g_MouseOverride.Pending)
 			{
@@ -158,7 +158,7 @@ namespace device::irp
 				mouseData[i].LastX,
 				mouseData[i].LastY
 			);
-			*/
+			
 		}
 
 		if (irp->m_pending_returned)

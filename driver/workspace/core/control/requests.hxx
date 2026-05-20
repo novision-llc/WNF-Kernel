@@ -15,7 +15,9 @@ namespace control::requests
 		m_determine_entity,
 		m_determine_entity_bulk,
 		m_locate_actor,
-		m_determine_actor
+		m_determine_actor,
+		m_determine_actor_bulk,
+		m_locate_actor_bulk
 	};
 
 	typedef struct _KERNEL_RUNNING_REQUEST {
@@ -71,6 +73,7 @@ namespace control::requests
 		uintptr_t isDowned = 0;
 		uintptr_t HabenaroComponent = 0;
 		uintptr_t RankedProgress = 0;
+		uintptr_t LastRenderTime = 0;
 	};
 
 	typedef struct _KERNEL_DETERMINE_ENTITY {
@@ -96,6 +99,7 @@ namespace control::requests
 		primitives::fvector Velocity{};
 		std::int32_t Rank = 0;
 		std::int32_t TeamIndex = 0;
+		float LastRenderTime = 0.0f;
 		char isDying = 0;
 		char isDowned = 0;
 	};
@@ -118,11 +122,9 @@ namespace control::requests
 	struct determine_bones_out
 	{
 		primitives::ftransform m_component_to_world{};
-		uintptr_t m_bone_array = 0;
+		uintptr_t m_player_state = 0;
 		uint32_t m_transform_index = 0; // index into transform buffer
 		uint32_t m_count = 0;
-		int64_t m_early_return = 0;
-		int64_t m_error_code = 0;
 	};
 
 	typedef struct _KERNEL_DETERMINE_BONES_BULK
@@ -158,6 +160,7 @@ namespace control::requests
 		uintptr_t PickupSpawnSource = 0;
 		uintptr_t SearchPtr = 0;
 		uintptr_t PickupEntry = 0;
+		uintptr_t m_data_array = 0;
 		uintptr_t ItemRarity = 0;
 		uintptr_t ItemNamePtr = 0;
 		uintptr_t RootComponent = 0;
@@ -176,4 +179,48 @@ namespace control::requests
 		std::uint8_t ItemRarity;
 		uintptr_t ItemNamePtr = 0;
 	};
+
+	typedef struct _KERNEL_DETERMINE_ACTOR_BULK
+	{
+		uintptr_t* m_actor_array;
+
+		// Same offsets as single determine_actor
+		uintptr_t SimulatingTooLongLength = 0;
+		uintptr_t PickupSpawnSource = 0;
+		uintptr_t SearchPtr = 0;
+		uintptr_t PickupEntry = 0;
+		uintptr_t m_data_array = 0;
+		uintptr_t ItemRarity = 0;
+		uintptr_t ItemNamePtr = 0;
+		uintptr_t RootComponent = 0;
+		uintptr_t RelativeLocation = 0;
+
+		// Output buffer (array of actor_determine_out)
+		PVOID m_buffer;
+
+		// OUT
+		size_t Count = 0;
+
+		// IN
+		size_t MaxCount = 0;
+	} KERNEL_DETERMINE_ACTOR_BULK, * PKERNEL_DETERMINE_ACTOR_BULK;
+
+
+	typedef struct _KERNEL_LOCATE_ACTOR_BULK
+	{
+		uintptr_t* m_actor_array;
+
+		uintptr_t RootComponent = 0;
+		uintptr_t RelativeLocation = 0;
+
+		// Output buffer (array of actor_locate_out)
+		PVOID m_buffer;
+
+		// OUT
+		size_t Count = 0;
+
+		// IN
+		size_t MaxCount = 0;
+	} KERNEL_LOCATE_ACTOR_BULK, * PKERNEL_LOCATE_ACTOR_BULK;
+
 }

@@ -58,9 +58,9 @@ namespace std
     template <typename type, size_t max_size = 1000>
     class c_vector {
     private:
-        type m_data[max_size];
-        size_t m_size;
-        kspin_lock_t m_lock;
+        type m_data[max_size]{};
+        size_t m_size{};
+        kspin_lock_t m_lock{};
 
     public:
         c_vector() : m_size(0) {

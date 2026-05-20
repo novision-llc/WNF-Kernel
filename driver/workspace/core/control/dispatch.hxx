@@ -6,6 +6,8 @@ namespace control::dispatch
 
 	namespace driver
 	{
+        static bool recieved_unload_packet = false;
+
 		nt_status_t is_running(PKERNEL_RUNNING_REQUEST req)
 		{
             if (nt::ke_get_current_irql() != PASSIVE_LEVEL)
@@ -21,22 +23,7 @@ namespace control::dispatch
             if (nt::ke_get_current_irql() != PASSIVE_LEVEL)
                 return nt_status_t::invalid_device_state;
 
-
-			if (global::event::sync_event)
-			{
-				nt::ob_dereference_object(global::event::sync_event);
-				global::event::sync_event = NULL;
-				nt::dbg_print(oxorany("[unload_driver] Dereferenced syncevent!"));
-			}
-
-			if (global::event::wnf_subscription)
-			{
-				nt::ex_unsubscribe_wnf_state_change(global::event::wnf_subscription);
-				nt::dbg_print(oxorany("[unload_driver] Unsubscribed callback!"));
-			}
-
-			g_paging.cleanup();
-
+            recieved_unload_packet = true;
 			return nt_status_t::success;
 		}
 	}
@@ -321,7 +308,9 @@ namespace control::dispatch
                     determine_bones_out local{};
                     local.m_transform_index = static_cast<uint32_t>(global_index);
 
-                    packet.m_offsets.m_player_state = base + (idx * global::uintptr_size);
+                    packet.m_offsets.m_player_state =
+                        base + (idx * global::uintptr_size);
+
                     nt_status_t st = batching::determine_bones(
                         packet.bone_indexes,
                         packet.m_offsets,
@@ -331,12 +320,7 @@ namespace control::dispatch
                     );
 
                     if (st != nt_status_t::success)
-                    {
-
-                        ((determine_bones_out*)packet.m_out)[valid_count++] = local;
-                        global_index += local.m_count;
                         continue;
-                    }
 
                     ((determine_bones_out*)packet.m_out)[valid_count++] = local;
                     global_index += local.m_count;
@@ -388,7 +372,7 @@ namespace control::dispatch
             out->Actor = AActor;
 
             std::uint64_t rootComp{};
-            st = mm::phys::km_safe_read(out->Actor + in.RootComponent, &rootComp, sizeof(rootComp));
+            st = mm::phys::km_safe_read(AActor + in.RootComponent, &rootComp, sizeof(rootComp));
             if (st != nt_status_t::success || !rootComp)
                 return nt_status_t::unsuccessful;
 
@@ -400,40 +384,71 @@ namespace control::dispatch
             out->location = location;
 
             float simulating = 0.0f;
-            st = mm::phys::km_safe_read(out->Actor + in.SimulatingTooLongLength, &simulating, sizeof(simulating));
+            st = mm::phys::km_safe_read(AActor + in.SimulatingTooLongLength, &simulating, sizeof(simulating));
             if (st != nt_status_t::success)
                 return nt_status_t::unsuccessful;
 
             out->SimulatingTooLongLength = simulating;
 
             std::uint8_t spawnSrc = 0;
-            st = mm::phys::km_safe_read(out->Actor + in.PickupSpawnSource, &spawnSrc, sizeof(spawnSrc));
+            st = mm::phys::km_safe_read(AActor + in.PickupSpawnSource, &spawnSrc, sizeof(spawnSrc));
             if (st != nt_status_t::success)
                 return nt_status_t::unsuccessful;
 
             out->PickupSpawnSource = spawnSrc;
 
             std::uint64_t SearchPtr = 0;
-            st = mm::phys::km_safe_read(out->Actor + in.SearchPtr, &SearchPtr, sizeof(SearchPtr));
+            st = mm::phys::km_safe_read(AActor + in.SearchPtr, &SearchPtr, sizeof(SearchPtr));
             if (st != nt_status_t::success)
                 return nt_status_t::unsuccessful;
 
             out->SearchPtr = SearchPtr;
 
             std::uint64_t pickup_entry = 0;
-            st = mm::phys::km_safe_read(out->Actor + in.PickupEntry, &pickup_entry, sizeof(pickup_entry));
+            st = mm::phys::km_safe_read(AActor + in.PickupEntry, &pickup_entry, sizeof(pickup_entry));
             if (st != nt_status_t::success)
                 return nt_status_t::unsuccessful;
 
             out->PickupEntry = pickup_entry;
+            /*
+            primitives::tarray_t<primitives::finstanced_struct> data_array{};
+            st = mm::phys::km_safe_read(
+                pickup_entry + in.m_data_array,
+                &data_array,
+                sizeof(data_array)
+            );
 
-            std::uint8_t itemRarity = 0;
-            st = mm::phys::km_safe_read(pickup_entry + in.ItemRarity, &itemRarity, sizeof(itemRarity));
-            if (st != nt_status_t::success)
-                return nt_status_t::unsuccessful;
+            if (data_array.is_valid())
+            {
+                for (auto i = 0; i < data_array.m_count; i++)
+                {
+                    uintptr_t data_ptr = data_array.get_addr(i);
+                    if (!data_ptr)
+                        break;
 
-            out->ItemRarity = itemRarity;
+                    primitives::finstanced_struct data{};
+                    auto st = mm::phys::km_safe_read(
+                        data_ptr,
+                        &data,
+                        sizeof(primitives::finstanced_struct)
+                    );
+                    if (st != nt_status_t::success)
+                        continue;
 
+                    if (data.script_struct == in.ItemRarity)
+                    {
+						uint8_t rarity = 0;
+                        auto st = mm::phys::km_safe_read(
+                            data.struct_memory,
+                            &rarity,
+                            sizeof(std::uint8_t)
+                        );
+
+                        out->ItemRarity = rarity;
+                    }
+                }
+            }
+            */
             std::uint64_t ItemNamePtr = 0;
             st = mm::phys::km_safe_read(pickup_entry + in.ItemNamePtr, &ItemNamePtr, sizeof(ItemNamePtr));
             if (st != nt_status_t::success)
@@ -463,26 +478,24 @@ namespace control::dispatch
 
             KERNEL_LOCATE_ACTOR in{};
             __try {
-                nt::rtl_copy_memory(&in, input_data, sizeof(PKERNEL_LOCATE_ACTOR));
+                nt::rtl_copy_memory(&in, input_data, sizeof(in));
             }
             __except (EXCEPTION_EXECUTE_HANDLER) {
                 return nt_status_t::access_violation;
             }
 
-            size_t locationSize = sizeof(primitives::fvector);
-            size_t rootCompSize = sizeof(uintptr_t);
             actor_locate_out local{};
             auto* out = &local;
 
             uintptr_t Actor = in.Actor;
 
             std::uint64_t rootComp{};
-            st = mm::phys::km_safe_read(Actor + in.RootComponent, &rootComp, rootCompSize);
+            st = mm::phys::km_safe_read(Actor + in.RootComponent, &rootComp, sizeof(uintptr_t));
             if (st != nt_status_t::success || !rootComp)
                 return nt_status_t::unsuccessful;
 
             primitives::fvector location{};
-            st = mm::phys::km_safe_read(rootComp + in.RelativeLocation, &location, locationSize);
+            st = mm::phys::km_safe_read(rootComp + in.RelativeLocation, &location, sizeof(location));
             if (st != nt_status_t::success)
                 return nt_status_t::unsuccessful;
 
@@ -492,6 +505,123 @@ namespace control::dispatch
                 nt::rtl_copy_memory(input_data->m_buffer, out, sizeof(actor_locate_out));
             }
             __except (EXCEPTION_EXECUTE_HANDLER) {
+                return nt_status_t::access_violation;
+            }
+
+            return nt_status_t::success;
+        }
+
+        nt_status_t determine_actor_bulk(PKERNEL_DETERMINE_ACTOR_BULK input_data)
+        {
+            if (nt::ke_get_current_irql() != PASSIVE_LEVEL)
+                return nt_status_t::invalid_device_state;
+
+            if (!input_data || !input_data->m_buffer || !input_data->m_actor_array)
+                return nt_status_t::unsuccessful;
+
+            KERNEL_DETERMINE_ACTOR_BULK packet{};
+            nt::rtl_copy_memory(&packet, input_data, sizeof(packet));
+
+            constexpr size_t MAX_ACTORS = 10000;
+            size_t count = min(packet.MaxCount, MAX_ACTORS);
+
+            auto* out = reinterpret_cast<actor_determine_out*>(packet.m_buffer);
+            uintptr_t base = reinterpret_cast<uintptr_t>(packet.m_actor_array);
+
+            size_t write_idx = 0;
+
+            __try
+            {
+                for (size_t idx = 0; idx < count; ++idx)
+                {
+                    uintptr_t actor{};
+                    nt::rtl_copy_memory(
+                        &actor,
+                        reinterpret_cast<void*>(base + idx * sizeof(uintptr_t)),
+                        sizeof(actor));
+
+                    actor_determine_out local{};
+
+                    nt_status_t st =
+                        batching::determine_actor(packet, actor, local);
+
+                    if (st != nt_status_t::success)
+                        continue;
+
+                    out[write_idx++] = local;
+                }
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER)
+            {
+                return nt_status_t::access_violation;
+            }
+
+            __try
+            {
+                input_data->Count = write_idx;
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER)
+            {
+                return nt_status_t::access_violation;
+            }
+
+            return nt_status_t::success;
+        }
+
+        nt_status_t locate_actor_bulk(PKERNEL_LOCATE_ACTOR_BULK input_data)
+        {
+            if (nt::ke_get_current_irql() != PASSIVE_LEVEL)
+                return nt_status_t::invalid_device_state;
+
+            if (!input_data || !input_data->m_buffer || !input_data->m_actor_array)
+                return nt_status_t::unsuccessful;
+
+            KERNEL_LOCATE_ACTOR_BULK packet{};
+            nt::rtl_copy_memory(&packet, input_data, sizeof(packet));
+
+            constexpr size_t MAX_ACTORS = 128;
+            size_t count = min(packet.MaxCount, MAX_ACTORS);
+
+            auto* out = reinterpret_cast<actor_locate_out*>(packet.m_buffer);
+            uintptr_t base = reinterpret_cast<uintptr_t>(packet.m_actor_array);
+
+            size_t write_idx = 0;
+
+            __try
+            {
+                for (size_t idx = 0; idx < count; ++idx)
+                {
+                    uintptr_t actor{};
+                    nt::rtl_copy_memory(
+                        &actor,
+                        reinterpret_cast<void*>(base + idx * sizeof(uintptr_t)),
+                        sizeof(actor));
+
+                    actor_locate_out local{};
+
+                    nt_status_t st = batching::locate_actor(
+                        actor,
+                        packet.RootComponent,
+                        packet.RelativeLocation,
+                        local);
+
+                    if (st != nt_status_t::success)
+                        continue;
+
+                    out[write_idx++] = local;
+                }
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER)
+            {
+                return nt_status_t::access_violation;
+            }
+
+            __try
+            {
+                input_data->Count = write_idx;
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER)
+            {
                 return nt_status_t::access_violation;
             }
 
